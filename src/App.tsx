@@ -3,11 +3,14 @@ import reactLogo from "./assets/react.svg";
 import viteLogo from "/vite.svg";
 import "./App.css";
 import { useEq } from "./hooks/use-eq";
+import { useGetAudio } from "./hooks/use-get-audio";
 
 function App() {
   const [count, setCount] = useState(0);
 
-  useEq();
+  const { audio: testSound } = useGetAudio({ path: "/test-sound.mp3" });
+
+  useEq({ audio: testSound });
 
   return (
     <>
