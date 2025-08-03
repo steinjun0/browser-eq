@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 export function useEq({ audio }: { audio: HTMLAudioElement | null }) {
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -19,7 +19,8 @@ export function useEq({ audio }: { audio: HTMLAudioElement | null }) {
 
     // EQ를 위한 필터 노드들을 생성
     filtersRef.current = initializeFilters({
-      frequencies: [60, 170, 350, 1000, 3500, 10000], // 예시 주파수
+      //   frequencies: [60, 170, 350, 1000, 3500, 10000], // 예시 주파수
+      frequencies: [60, 1000, 3500, 10000], // 예시 주파수
       audioContext: audioContextRef.current,
     });
 
@@ -36,44 +37,6 @@ export function useEq({ audio }: { audio: HTMLAudioElement | null }) {
 
     console.log(sourceRef.current);
 
-    const frequencyBinCount = 512;
-    const sampleRate = audioContextRef.current.sampleRate;
-
-    const frequencyArray = new Float32Array(frequencyBinCount);
-    const magResponse = new Float32Array(frequencyBinCount);
-    const phaseResponse = new Float32Array(frequencyBinCount);
-
-    const minLogFrequency = Math.log10(20);
-    const maxLogFrequency = Math.log10(20000);
-    const logFrequencyStep =
-      (maxLogFrequency - minLogFrequency) / (frequencyBinCount - 1);
-
-    for (let i = 0; i < frequencyBinCount; i++) {
-      const logFrequency = minLogFrequency + i * logFrequencyStep;
-      frequencyArray[i] = Math.pow(10, logFrequency);
-    }
-
-    // 3. getFrequencyResponse 호출
-    // 모든 필터의 응답을 합산
-    // (이 부분은 여러 필터가 있을 경우의 로직입니다)
-    const totalMagResponse = new Float32Array(frequencyBinCount).fill(0);
-
-    filtersRef.current.forEach((filter) => {
-      const currentMagResponse = new Float32Array(frequencyBinCount);
-      filter?.getFrequencyResponse(
-        frequencyArray,
-        currentMagResponse,
-        phaseResponse
-      );
-
-      // magResponse 값은 선형 스케일이므로 dB로 변환 후 합산
-      for (let i = 0; i < frequencyBinCount; i++) {
-        totalMagResponse[i] += 20 * Math.log10(currentMagResponse[i]);
-      }
-    });
-
-    console.log(totalMagResponse);
-
     // 오디오 재생
     audio.play();
 
@@ -84,6 +47,20 @@ export function useEq({ audio }: { audio: HTMLAudioElement | null }) {
       }
     };
   }, [audio]);
+
+  const getFrequencyResponse = useCallback(() => {
+    if (audioContextRef.current == null) {
+      throw new Error("audioContext is Not ready");
+    }
+    return getFrequencyResponseCore({
+      audioContext: audioContextRef.current,
+      filters: filtersRef.current,
+    });
+  }, []);
+
+  return {
+    getFrequencyResponse,
+  };
 }
 
 function initializeFilters({
@@ -93,13 +70,13 @@ function initializeFilters({
   frequencies: number[];
   audioContext: AudioContext;
 }) {
-  const filters = frequencies.map((freq) => {
+  const filters = frequencies.map((freq, index) => {
     const filter = audioContext.createBiquadFilter();
 
     filter.type = "peaking";
     filter.frequency.value = freq;
-    filter.gain.value = 1; // 초기 게인값은 0dB
-    filter.Q.value = 1; // 초기 Q값은 1
+    filter.gain.value = 1; // 초기 게인값은 1dB
+    filter.Q.value = 10; // 초기 Q값은 1
     return filter;
   });
 
@@ -114,4 +91,57 @@ function connectFilters(filters: Array<BiquadFilterNode | null>) {
     }
     filter.connect(nextFilter);
   });
+}
+
+function getFrequencyResponseCore({
+  audioContext,
+  filters,
+}: {
+  audioContext: AudioContext;
+  filters: Array<BiquadFilterNode | null>;
+}) {
+  const frequencyBinCount = 512;
+  const sampleRate = audioContext.sampleRate;
+
+  const frequencyArray = new Float32Array(frequencyBinCount);
+  const magResponse = new Float32Array(frequencyBinCount);
+  const phaseResponse = new Float32Array(frequencyBinCount);
+
+  const minLogFrequency = Math.log10(20);
+  const maxLogFrequency = Math.log10(20000);
+  const logFrequencyStep =
+    (maxLogFrequency - minLogFrequency) / (frequencyBinCount - 1);
+
+  for (let i = 0; i < frequencyBinCount; i++) {
+    const logFrequency = minLogFrequency + i * logFrequencyStep;
+    frequencyArray[i] = Math.pow(10, logFrequency);
+  }
+
+  console.log("frequencyArray", frequencyArray);
+
+  // 3. getFrequencyResponse 호출
+  // 모든 필터의 응답을 합산
+  // (이 부분은 여러 필터가 있을 경우의 로직입니다)
+  const totalMagResponse = new Float32Array(frequencyBinCount).fill(0);
+
+  filters.forEach((filter) => {
+    const currentMagResponse = new Float32Array(frequencyBinCount);
+    filter?.getFrequencyResponse(
+      frequencyArray,
+      currentMagResponse,
+      phaseResponse
+    );
+
+    // magResponse 값은 선형 스케일이므로 dB로 변환 후 합산
+    for (let i = 0; i < frequencyBinCount; i++) {
+      totalMagResponse[i] += 20 * Math.log10(currentMagResponse[i]);
+    }
+  });
+
+  console.log(totalMagResponse);
+
+  return {
+    frequencyArray,
+    totalMagResponse,
+  };
 }
