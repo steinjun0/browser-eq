@@ -18,19 +18,9 @@ export function useEq({ audio }: { audio: HTMLAudioElement | null }) {
     sourceRef.current = audioContextRef.current.createMediaElementSource(audio);
 
     // EQ를 위한 필터 노드들을 생성
-    const frequencies = [60, 170, 350, 1000, 3500, 10000]; // 예시 주파수
-    filtersRef.current = frequencies.map((freq, index) => {
-      const filter = audioContextRef.current?.createBiquadFilter();
-
-      if (filter == null) {
-        return null;
-      }
-
-      filter.type = "peaking";
-      filter.frequency.value = freq;
-      filter.gain.value = 5; // 초기 게인값은 0dB
-      filter.Q.value = 1; // 초기 Q값은 1
-      return filter;
+    filtersRef.current = initializeFilters({
+      frequencies: [60, 170, 350, 1000, 3500, 10000], // 예시 주파수
+      audioContext: audioContextRef.current,
     });
 
     const firstFilter = filtersRef.current[0];
@@ -38,6 +28,7 @@ export function useEq({ audio }: { audio: HTMLAudioElement | null }) {
     if (firstFilter == null || lastFilter == null) {
       return;
     }
+
     // 노드들을 연결: source -> filter1 -> filter2 -> ... -> destination
     sourceRef.current.connect(firstFilter);
     connectFilters(filtersRef.current);
@@ -93,6 +84,26 @@ export function useEq({ audio }: { audio: HTMLAudioElement | null }) {
       }
     };
   }, [audio]);
+}
+
+function initializeFilters({
+  frequencies,
+  audioContext,
+}: {
+  frequencies: number[];
+  audioContext: AudioContext;
+}) {
+  const filters = frequencies.map((freq) => {
+    const filter = audioContext.createBiquadFilter();
+
+    filter.type = "peaking";
+    filter.frequency.value = freq;
+    filter.gain.value = 1; // 초기 게인값은 0dB
+    filter.Q.value = 1; // 초기 Q값은 1
+    return filter;
+  });
+
+  return filters;
 }
 
 function connectFilters(filters: Array<BiquadFilterNode | null>) {
