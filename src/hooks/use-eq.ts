@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
+const NUMBER_OF_FREQUENCY_POINTS = 1024;
+
 export function useEq({ audio }: { audio: HTMLAudioElement | null }) {
   const audioContextRef = useRef<AudioContext | null>(null);
   const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
@@ -100,32 +102,22 @@ function getFrequencyResponseCore({
   audioContext: AudioContext;
   filters: Array<BiquadFilterNode | null>;
 }) {
-  const frequencyBinCount = 512;
   const sampleRate = audioContext.sampleRate;
 
-  const frequencyArray = new Float32Array(frequencyBinCount);
-  const magResponse = new Float32Array(frequencyBinCount);
-  const phaseResponse = new Float32Array(frequencyBinCount);
-
-  const minLogFrequency = Math.log10(20);
-  const maxLogFrequency = Math.log10(20000);
-  const logFrequencyStep =
-    (maxLogFrequency - minLogFrequency) / (frequencyBinCount - 1);
-
-  for (let i = 0; i < frequencyBinCount; i++) {
-    const logFrequency = minLogFrequency + i * logFrequencyStep;
-    frequencyArray[i] = Math.pow(10, logFrequency);
-  }
+  // const frequencyArray = new Float32Array(numberOfFrequencyPoints);
+  const frequencyArray = getFrequencyArray();
+  const magResponse = new Float32Array(NUMBER_OF_FREQUENCY_POINTS);
+  const phaseResponse = new Float32Array(NUMBER_OF_FREQUENCY_POINTS);
 
   console.log("frequencyArray", frequencyArray);
 
   // 3. getFrequencyResponse 호출
   // 모든 필터의 응답을 합산
   // (이 부분은 여러 필터가 있을 경우의 로직입니다)
-  const totalMagResponse = new Float32Array(frequencyBinCount).fill(0);
+  const totalMagResponse = new Float32Array(NUMBER_OF_FREQUENCY_POINTS).fill(0);
 
   filters.forEach((filter) => {
-    const currentMagResponse = new Float32Array(frequencyBinCount);
+    const currentMagResponse = new Float32Array(NUMBER_OF_FREQUENCY_POINTS);
     filter?.getFrequencyResponse(
       frequencyArray,
       currentMagResponse,
@@ -133,7 +125,7 @@ function getFrequencyResponseCore({
     );
 
     // magResponse 값은 선형 스케일이므로 dB로 변환 후 합산
-    for (let i = 0; i < frequencyBinCount; i++) {
+    for (let i = 0; i < NUMBER_OF_FREQUENCY_POINTS; i++) {
       totalMagResponse[i] += 20 * Math.log10(currentMagResponse[i]);
     }
   });
@@ -144,4 +136,32 @@ function getFrequencyResponseCore({
     frequencyArray,
     totalMagResponse,
   };
+}
+
+/** @description Get frequency list for X Axis*/
+function getFrequencyArray({
+  numberOfFrequencyPoints = NUMBER_OF_FREQUENCY_POINTS,
+  frequencyRange = {
+    min: 20,
+    max: 20000,
+  },
+}: {
+  numberOfFrequencyPoints?: number;
+  frequencyRange?: {
+    min: number;
+    max: number;
+  };
+} = {}) {
+  const frequencyArray = new Float32Array(numberOfFrequencyPoints);
+  const minLogFrequency = Math.log10(frequencyRange.min);
+  const maxLogFrequency = Math.log10(frequencyRange.max);
+  const logFrequencyStep =
+    (maxLogFrequency - minLogFrequency) / (numberOfFrequencyPoints - 1);
+
+  for (let i = 0; i < numberOfFrequencyPoints; i++) {
+    const logFrequency = minLogFrequency + i * logFrequencyStep;
+    frequencyArray[i] = Math.pow(10, logFrequency);
+  }
+
+  return frequencyArray;
 }
