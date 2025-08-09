@@ -42,7 +42,9 @@ function clamp(value: number, min: number, max: number) {
 
 function App() {
   const { audio: testSound } = useGetAudio({ path: "/test-sound.mp3" });
-  const { getFrequencyResponse, updateFilter } = useEq({ audio: testSound });
+  const { getFrequencyResponse, updateFilter, resumeAudioContext } = useEq({
+    audio: testSound,
+  });
 
   // 4개의 EQ 포인트 (x: Hz, y: dB)
   const [points, setPoints] = useState<Array<{ x: number; y: number }>>([
@@ -178,18 +180,60 @@ function App() {
 
   return (
     <>
-      {/* 필요 시 주파수 응답 확인 버튼 유지 */}
-      <button
-        onClick={() => {
-          const res = getFrequencyResponse();
-          const fp: Array<{ x: number; y: number }> = Array.from(
-            res.frequencyArray
-          ).map((f, i) => ({ x: f, y: res.totalMagResponse[i] }));
-          setResponsePoints(fp);
-        }}
-      >
-        getData
-      </button>
+      <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+        <button
+          onClick={async () => {
+            try {
+              await resumeAudioContext();
+            } catch {}
+            if (testSound) {
+              try {
+                await testSound.play();
+              } catch {}
+            }
+          }}
+          disabled={!testSound}
+        >
+          Play
+        </button>
+        <button
+          onClick={() => {
+            if (testSound) {
+              try {
+                testSound.pause();
+              } catch {}
+            }
+          }}
+          disabled={!testSound}
+        >
+          Pause
+        </button>
+        <button
+          onClick={() => {
+            if (testSound) {
+              try {
+                testSound.pause();
+                testSound.currentTime = 0;
+              } catch {}
+            }
+          }}
+          disabled={!testSound}
+        >
+          Stop
+        </button>
+
+        <button
+          onClick={() => {
+            const res = getFrequencyResponse();
+            const fp: Array<{ x: number; y: number }> = Array.from(
+              res.frequencyArray
+            ).map((f, i) => ({ x: f, y: res.totalMagResponse[i] }));
+            setResponsePoints(fp);
+          }}
+        >
+          getData
+        </button>
+      </div>
 
       <Line options={options} data={data} />
     </>

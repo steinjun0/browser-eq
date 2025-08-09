@@ -37,11 +37,6 @@ export function useEq({ audio }: { audio: HTMLAudioElement | null }) {
     connectFilters(filtersRef.current);
     lastFilter.connect(audioContextRef.current.destination);
 
-    // 오디오 재생 (muted 상태이므로 자동재생 허용 케이스 증가)
-    audio.play().catch(() => {
-      // 브라우저 정책상 실패 가능. 사용자 제스처에서 resume/play 필요
-    });
-
     return () => {
       // 컴포넌트 언마운트 시 오디오 컨텍스트 닫기
       if (audioContextRef.current) {
