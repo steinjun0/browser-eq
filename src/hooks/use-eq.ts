@@ -17,7 +17,7 @@ export function useEq({ audio }: { audio: HTMLAudioElement | null }) {
     }
 
     audioContextRef.current = new window.AudioContext();
-    // audio.crossOrigin = "anonymous"; // CORS 문제 해결 // 없어도 문제 없음?
+
     sourceRef.current = audioContextRef.current.createMediaElementSource(audio);
 
     // EQ를 위한 필터 노드들을 생성
@@ -37,8 +37,10 @@ export function useEq({ audio }: { audio: HTMLAudioElement | null }) {
     connectFilters(filtersRef.current);
     lastFilter.connect(audioContextRef.current.destination);
 
-    // 오디오 재생
-    audio.play();
+    // 오디오 재생 (muted 상태이므로 자동재생 허용 케이스 증가)
+    audio.play().catch(() => {
+      // 브라우저 정책상 실패 가능. 사용자 제스처에서 resume/play 필요
+    });
 
     return () => {
       // 컴포넌트 언마운트 시 오디오 컨텍스트 닫기
@@ -47,6 +49,17 @@ export function useEq({ audio }: { audio: HTMLAudioElement | null }) {
       }
     };
   }, [audio]);
+
+  const resumeAudioContext = useCallback(async () => {
+    const ctx = audioContextRef.current;
+    if (ctx && ctx.state !== "running") {
+      try {
+        await ctx.resume();
+      } catch {
+        // noop
+      }
+    }
+  }, []);
 
   const getFrequencyResponse = useCallback(() => {
     if (audioContextRef.current == null) {
@@ -91,6 +104,7 @@ export function useEq({ audio }: { audio: HTMLAudioElement | null }) {
   return {
     getFrequencyResponse,
     updateFilter,
+    resumeAudioContext,
   };
 }
 
@@ -107,7 +121,7 @@ function initializeFilters({
     filter.type = "peaking";
     filter.frequency.value = freq;
     filter.gain.value = 0; // 초기 게인값 0dB
-    filter.Q.value = 10; // 초기 Q값
+    filter.Q.value = 0.1; // 초기 Q값
     return filter;
   });
 

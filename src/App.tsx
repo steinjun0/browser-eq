@@ -52,16 +52,25 @@ function App() {
     { x: 10000, y: 0 },
   ]);
 
+  // 주파수 응답선 데이터 (비인터랙티브)
+  const [responsePoints, setResponsePoints] = useState<
+    Array<{ x: number; y: number }>
+  >([]);
+
   const options: ChartOptions<"line"> = {
     responsive: true,
     animation: false,
     plugins: {
-      legend: { display: false },
+      legend: { display: true },
       title: {
         display: true,
         text: "Draggable 4-point EQ",
       },
-      // dragdata 플러그인은 타입 선언이 없어 any로 처리
+      /**
+       * @note
+       * dragDataPlugin doesn't have Typescript. Check Repo.
+       * https://github.com/artus9033/chartjs-plugin-dragdata?tab=readme-ov-file#per-chart-configuration
+       */
       dragData: {
         dragX: true,
         dragY: true,
@@ -73,21 +82,11 @@ function App() {
           index: number,
           value: any
         ) => {
-          // 드래그 중 경계값 클램프 및 실시간 필터 반영
+          // 드래그 중 경계값 클램프
           const nx = clamp(value.x, X_MIN, X_MAX);
           const ny = clamp(value.y, Y_MIN, Y_MAX);
           value.x = nx;
           value.y = ny;
-          updateFilter({ index, frequency: nx, gain: ny });
-        },
-        onDragEnd: (
-          _e: unknown,
-          _datasetIndex: number,
-          index: number,
-          value: any
-        ) => {
-          const nx = clamp(value.x, X_MIN, X_MAX);
-          const ny = clamp(value.y, Y_MIN, Y_MAX);
           updateFilter({ index, frequency: nx, gain: ny });
           setPoints((prev) => {
             const next = [...prev];
@@ -96,8 +95,20 @@ function App() {
             // next.sort((a, b) => a.x - b.x);
             return next;
           });
+
+          const res = getFrequencyResponse();
+          const fp: Array<{ x: number; y: number }> = Array.from(
+            res.frequencyArray
+          ).map((f, i) => ({ x: f, y: res.totalMagResponse[i] }));
+          setResponsePoints(fp);
         },
-      } as any,
+        // onDragEnd: (
+        //   _e: unknown,
+        //   _datasetIndex: number,
+        //   index: number,
+        //   value: any
+        // ) => {},
+      },
       tooltip: { enabled: true },
     },
     scales: {
@@ -132,19 +143,35 @@ function App() {
     },
     elements: {
       line: { tension: 0.3 },
-      point: { radius: 5, hitRadius: 10, hoverRadius: 7 },
+      point: { radius: 5, hitRadius: 12, hoverRadius: 7 },
     },
-    interaction: { mode: "nearest", axis: "xy", intersect: false },
+    // 포인트에 정확히 포인터가 겹쳐야 하도록 설정 (라인에 가깝기만 한 경우 선택되지 않음)
+    interaction: { mode: "nearest", axis: "xy", intersect: true },
   } as any;
 
   const data: ChartData<"line"> = {
     datasets: [
       {
-        label: "EQ",
+        label: "Frequency Response",
+        data: responsePoints,
+        borderColor: "rgb(0, 200, 140)",
+        backgroundColor: "rgba(0, 200, 140, 0.15)",
+        fill: false,
+        pointRadius: 0,
+        pointHitRadius: 0,
+        pointHoverRadius: 0,
+        borderWidth: 2,
+        order: 0,
+        // 이 데이터셋은 드래그 비활성화
+        dragData: false as any,
+      },
+      {
+        label: "EQ Points",
         data: points,
         borderColor: "rgb(99, 132, 255)",
         backgroundColor: "rgba(99, 132, 255, 0.4)",
         fill: false,
+        order: 1, // 항상 상단에 그려져 드래그 우선
       },
     ],
   };
@@ -155,8 +182,10 @@ function App() {
       <button
         onClick={() => {
           const res = getFrequencyResponse();
-          console.log("frequencyArray", res.frequencyArray);
-          console.log("totalMagResponse", res.totalMagResponse);
+          const fp: Array<{ x: number; y: number }> = Array.from(
+            res.frequencyArray
+          ).map((f, i) => ({ x: f, y: res.totalMagResponse[i] }));
+          setResponsePoints(fp);
         }}
       >
         getData
