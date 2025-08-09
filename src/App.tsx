@@ -38,8 +38,6 @@ const options = {
 };
 
 function App() {
-  const [count, setCount] = useState(0);
-
   const { audio: testSound } = useGetAudio({ path: "/test-sound.mp3" });
 
   const { getFrequencyResponse } = useEq({ audio: testSound });

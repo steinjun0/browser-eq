@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 const NUMBER_OF_FREQUENCY_POINTS = 1024;
+const FrequencyRange = {
+  MIN: 20,
+  MAX: 20000,
+};
 
 export function useEq({ audio }: { audio: HTMLAudioElement | null }) {
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -55,7 +59,6 @@ export function useEq({ audio }: { audio: HTMLAudioElement | null }) {
       throw new Error("audioContext is Not ready");
     }
     return getFrequencyResponseCore({
-      audioContext: audioContextRef.current,
       filters: filtersRef.current,
     });
   }, []);
@@ -72,7 +75,7 @@ function initializeFilters({
   frequencies: number[];
   audioContext: AudioContext;
 }) {
-  const filters = frequencies.map((freq, index) => {
+  const filters = frequencies.map((freq) => {
     const filter = audioContext.createBiquadFilter();
 
     filter.type = "peaking";
@@ -96,24 +99,12 @@ function connectFilters(filters: Array<BiquadFilterNode | null>) {
 }
 
 function getFrequencyResponseCore({
-  audioContext,
   filters,
 }: {
-  audioContext: AudioContext;
   filters: Array<BiquadFilterNode | null>;
 }) {
-  const sampleRate = audioContext.sampleRate;
-
-  // const frequencyArray = new Float32Array(numberOfFrequencyPoints);
   const frequencyArray = getFrequencyArray();
-  const magResponse = new Float32Array(NUMBER_OF_FREQUENCY_POINTS);
   const phaseResponse = new Float32Array(NUMBER_OF_FREQUENCY_POINTS);
-
-  console.log("frequencyArray", frequencyArray);
-
-  // 3. getFrequencyResponse 호출
-  // 모든 필터의 응답을 합산
-  // (이 부분은 여러 필터가 있을 경우의 로직입니다)
   const totalMagResponse = new Float32Array(NUMBER_OF_FREQUENCY_POINTS).fill(0);
 
   filters.forEach((filter) => {
@@ -138,12 +129,12 @@ function getFrequencyResponseCore({
   };
 }
 
-/** @description Get frequency list for X Axis*/
+/** @description Get frequency list for X Axis */
 function getFrequencyArray({
   numberOfFrequencyPoints = NUMBER_OF_FREQUENCY_POINTS,
   frequencyRange = {
-    min: 20,
-    max: 20000,
+    min: FrequencyRange.MIN,
+    max: FrequencyRange.MAX,
   },
 }: {
   numberOfFrequencyPoints?: number;
