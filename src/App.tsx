@@ -1,3 +1,4 @@
+import "chartjs-plugin-dragdata";
 import { useState } from "react";
 import "./App.css";
 import { useEq } from "./hooks/use-eq";
@@ -33,6 +34,10 @@ const options = {
     title: {
       display: true,
       text: "Chart.js Line Chart",
+    },
+    dragData: {
+      dragX: true,
+      dragY: true,
     },
   },
 };
