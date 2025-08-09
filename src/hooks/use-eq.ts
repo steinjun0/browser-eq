@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
 const NUMBER_OF_FREQUENCY_POINTS = 1024;
 const FrequencyRange = {
@@ -11,9 +11,6 @@ export function useEq({ audio }: { audio: HTMLAudioElement | null }) {
   const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
   const filtersRef = useRef<Array<BiquadFilterNode | null>>([]);
 
-  const [gainValues, setGainValues] = useState({});
-  const [qValues, setQValues] = useState({});
-
   useEffect(() => {
     if (audio == null) {
       return;
@@ -25,8 +22,7 @@ export function useEq({ audio }: { audio: HTMLAudioElement | null }) {
 
     // EQ를 위한 필터 노드들을 생성
     filtersRef.current = initializeFilters({
-      //   frequencies: [60, 170, 350, 1000, 3500, 10000], // 예시 주파수
-      frequencies: [60, 1000, 3500, 10000], // 예시 주파수
+      frequencies: [60, 1000, 3500, 10000],
       audioContext: audioContextRef.current,
     });
 
@@ -40,8 +36,6 @@ export function useEq({ audio }: { audio: HTMLAudioElement | null }) {
     sourceRef.current.connect(firstFilter);
     connectFilters(filtersRef.current);
     lastFilter.connect(audioContextRef.current.destination);
-
-    console.log(sourceRef.current);
 
     // 오디오 재생
     audio.play();
@@ -63,8 +57,40 @@ export function useEq({ audio }: { audio: HTMLAudioElement | null }) {
     });
   }, []);
 
+  const updateFilter = useCallback(
+    ({
+      index,
+      frequency,
+      gain,
+      Q,
+    }: {
+      index: number;
+      frequency?: number;
+      gain?: number;
+      Q?: number;
+    }) => {
+      const filter = filtersRef.current[index];
+      if (filter == null) return;
+      if (frequency != null) {
+        filter.frequency.value = clamp(
+          frequency,
+          FrequencyRange.MIN,
+          FrequencyRange.MAX
+        );
+      }
+      if (gain != null) {
+        filter.gain.value = gain; // dB 값 그대로 반영
+      }
+      if (Q != null) {
+        filter.Q.value = Math.max(0.0001, Q);
+      }
+    },
+    []
+  );
+
   return {
     getFrequencyResponse,
+    updateFilter,
   };
 }
 
@@ -80,8 +106,8 @@ function initializeFilters({
 
     filter.type = "peaking";
     filter.frequency.value = freq;
-    filter.gain.value = 1; // 초기 게인값은 1dB
-    filter.Q.value = 10; // 초기 Q값은 1
+    filter.gain.value = 0; // 초기 게인값 0dB
+    filter.Q.value = 10; // 초기 Q값
     return filter;
   });
 
@@ -121,8 +147,6 @@ function getFrequencyResponseCore({
     }
   });
 
-  console.log(totalMagResponse);
-
   return {
     frequencyArray,
     totalMagResponse,
@@ -155,4 +179,8 @@ function getFrequencyArray({
   }
 
   return frequencyArray;
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
 }

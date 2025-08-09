@@ -42,7 +42,7 @@ function clamp(value: number, min: number, max: number) {
 
 function App() {
   const { audio: testSound } = useGetAudio({ path: "/test-sound.mp3" });
-  const { getFrequencyResponse } = useEq({ audio: testSound });
+  const { getFrequencyResponse, updateFilter } = useEq({ audio: testSound });
 
   // 4개의 EQ 포인트 (x: Hz, y: dB)
   const [points, setPoints] = useState<Array<{ x: number; y: number }>>([
@@ -70,12 +70,15 @@ function App() {
         onDrag: (
           _e: unknown,
           _datasetIndex: number,
-          _index: number,
+          index: number,
           value: any
         ) => {
-          // 드래그 중 경계값 클램프
-          value.x = clamp(value.x, X_MIN, X_MAX);
-          value.y = clamp(value.y, Y_MIN, Y_MAX);
+          // 드래그 중 경계값 클램프 및 실시간 필터 반영
+          const nx = clamp(value.x, X_MIN, X_MAX);
+          const ny = clamp(value.y, Y_MIN, Y_MAX);
+          value.x = nx;
+          value.y = ny;
+          updateFilter({ index, frequency: nx, gain: ny });
         },
         onDragEnd: (
           _e: unknown,
@@ -83,12 +86,12 @@ function App() {
           index: number,
           value: any
         ) => {
+          const nx = clamp(value.x, X_MIN, X_MAX);
+          const ny = clamp(value.y, Y_MIN, Y_MAX);
+          updateFilter({ index, frequency: nx, gain: ny });
           setPoints((prev) => {
             const next = [...prev];
-            next[index] = {
-              x: clamp(value.x, X_MIN, X_MAX),
-              y: clamp(value.y, Y_MIN, Y_MAX),
-            };
+            next[index] = { x: nx, y: ny };
             // X축 정렬을 원하면 아래 주석 해제
             // next.sort((a, b) => a.x - b.x);
             return next;
