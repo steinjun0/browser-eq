@@ -1,4 +1,4 @@
-import "chartjs-plugin-dragdata";
+import dragDataPlugin from "chartjs-plugin-dragdata";
 import { useState } from "react";
 import "./App.css";
 import { useEq } from "./hooks/use-eq";
@@ -10,74 +10,156 @@ import {
   Legend,
   LinearScale,
   LineElement,
+  LogarithmicScale,
   PointElement,
   Title,
   Tooltip,
+  type ChartOptions,
+  type ChartData,
 } from "chart.js";
 import { Line } from "react-chartjs-2";
 
 ChartJS.register(
   CategoryScale,
   LinearScale,
+  LogarithmicScale,
   PointElement,
   LineElement,
   Title,
   Tooltip,
-  Legend
+  Legend,
+  dragDataPlugin
 );
-const options = {
-  responsive: true,
-  plugins: {
-    legend: {
-      position: "top" as const,
-    },
-    title: {
-      display: true,
-      text: "Chart.js Line Chart",
-    },
-    dragData: {
-      dragX: true,
-      dragY: true,
-    },
-  },
-};
+
+const X_MIN = 20;
+const X_MAX = 20000;
+const Y_MIN = -12;
+const Y_MAX = 12;
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
 
 function App() {
   const { audio: testSound } = useGetAudio({ path: "/test-sound.mp3" });
-
   const { getFrequencyResponse } = useEq({ audio: testSound });
-  const [frequneyResponse, setFrequenctresponse] = useState<{
-    frequencyArray: number[];
-    totalMagResponse: number[];
-  }>();
+
+  // 4개의 EQ 포인트 (x: Hz, y: dB)
+  const [points, setPoints] = useState<Array<{ x: number; y: number }>>([
+    { x: 60, y: 0 },
+    { x: 1000, y: 0 },
+    { x: 3500, y: 0 },
+    { x: 10000, y: 0 },
+  ]);
+
+  const options: ChartOptions<"line"> = {
+    responsive: true,
+    animation: false,
+    plugins: {
+      legend: { display: false },
+      title: {
+        display: true,
+        text: "Draggable 4-point EQ",
+      },
+      // dragdata 플러그인은 타입 선언이 없어 any로 처리
+      dragData: {
+        dragX: true,
+        dragY: true,
+        showTooltip: true,
+        round: 0, // 정수 필요 없으면 0
+        onDrag: (
+          _e: unknown,
+          _datasetIndex: number,
+          _index: number,
+          value: any
+        ) => {
+          // 드래그 중 경계값 클램프
+          value.x = clamp(value.x, X_MIN, X_MAX);
+          value.y = clamp(value.y, Y_MIN, Y_MAX);
+        },
+        onDragEnd: (
+          _e: unknown,
+          _datasetIndex: number,
+          index: number,
+          value: any
+        ) => {
+          setPoints((prev) => {
+            const next = [...prev];
+            next[index] = {
+              x: clamp(value.x, X_MIN, X_MAX),
+              y: clamp(value.y, Y_MIN, Y_MAX),
+            };
+            // X축 정렬을 원하면 아래 주석 해제
+            // next.sort((a, b) => a.x - b.x);
+            return next;
+          });
+        },
+      } as any,
+      tooltip: { enabled: true },
+    },
+    scales: {
+      x: {
+        type: "logarithmic",
+        min: X_MIN,
+        max: X_MAX,
+        ticks: {
+          callback: (v: any) => {
+            const val = Number(v);
+            if (
+              [20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000].includes(
+                val
+              )
+            ) {
+              return val >= 1000 ? `${val / 1000}k` : `${val}`;
+            }
+            return "";
+          },
+        },
+        title: { display: true, text: "Frequency (Hz)" },
+        grid: { color: "rgba(0,0,0,0.1)" },
+      },
+      y: {
+        type: "linear",
+        min: Y_MIN,
+        max: Y_MAX,
+        ticks: { stepSize: 3 },
+        title: { display: true, text: "Gain (dB)" },
+        grid: { color: "rgba(0,0,0,0.1)" },
+      },
+    },
+    elements: {
+      line: { tension: 0.3 },
+      point: { radius: 5, hitRadius: 10, hoverRadius: 7 },
+    },
+    interaction: { mode: "nearest", axis: "xy", intersect: false },
+  } as any;
+
+  const data: ChartData<"line"> = {
+    datasets: [
+      {
+        label: "EQ",
+        data: points,
+        borderColor: "rgb(99, 132, 255)",
+        backgroundColor: "rgba(99, 132, 255, 0.4)",
+        fill: false,
+      },
+    ],
+  };
 
   return (
     <>
+      {/* 필요 시 주파수 응답 확인 버튼 유지 */}
       <button
         onClick={() => {
           const res = getFrequencyResponse();
-          setFrequenctresponse({
-            frequencyArray: [...res.frequencyArray],
-            totalMagResponse: [...res.totalMagResponse],
-          });
+          console.log("frequencyArray", res.frequencyArray);
+          console.log("totalMagResponse", res.totalMagResponse);
         }}
       >
         getData
       </button>
-      <Line
-        options={options}
-        data={{
-          labels: frequneyResponse?.frequencyArray,
-          datasets: [
-            {
-              label: "Dataset 1",
-              data: frequneyResponse?.totalMagResponse,
-              borderColor: "rgb(255, 99, 132)",
-              backgroundColor: "rgba(255, 99, 132, 0.5)",
-            },
-          ],
-        }}
-      />
+
+      <Line options={options} data={data} />
     </>
   );
 }
